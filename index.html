@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Privado - GS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <style>
+        /* Estilos de seguridad */
+        #bloqueo { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #1a73e8; color: white; display: flex; 
+            flex-direction: column; align-items: center; justify-content: center; z-index: 9999; 
+        }
+        body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 15px; display: none; }
+        .app { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        input { width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 12px; font-size: 16px; margin-bottom: 10px; }
+        button { width: 100%; padding: 15px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; color: white; cursor: pointer; margin-bottom: 10px; }
+        .btn-scan { background: #1a73e8; }
+        .btn-discount { background: #27ae60; display: none; }
+        .btn-discount.active { background: #d93025; }
+        .result { display: none; text-align: center; padding: 20px; border: 2px solid #e8f0fe; border-radius: 15px; margin-top: 10px; }
+        .price { font-size: 45px; font-weight: bold; margin: 15px 0; }
+        #video { width: 100%; border-radius: 15px; display: none; background: black; }
+    </style>
+</head>
+<body>
+
+<div id="bloqueo">
+    <h2>SISTEMA PRIVADO GS</h2>
+    <input type="password" id="passInput" placeholder="Contraseña" style="width: 80%; margin-bottom: 20px;">
+    <button onclick="validar()" style="width: 80%; background: #0d47a1;">ENTRAR</button>
+</div>
+
+<div class="app">
+    <h2 style="text-align: center; color: #1a73e8;">FARMACIA GS</h2>
+    <button class="btn-scan" onclick="toggleScanner()">📷 ESCANEAR CÓDIGO</button>
+    <video id="video"></video>
+    <input type="text" id="searchInput" placeholder="Nombre o Código..." oninput="buscar(this.value)">
+    <div id="sugBox" style="border: 1px solid #ddd; border-radius: 10px; max-height: 200px; overflow-y: auto; display: none;"></div>
+
+    <div id="resultBox" class="result">
+        <h3 id="rName"></h3>
+        <div id="rPrice" class="price">$0.00</div>
+        <button class="btn-discount" id="btnDiscount" onclick="toggleDiscount()">APLICAR 25% DCTO.</button>
+        <button style="background: #95a5a6;" onclick="location.reload()">NUEVA BÚSQUEDA</button>
+    </div>
+</div>
+
+<script>
+    // 1. CONFIGURACIÓN
+    const CLAVE_MAESTRA = "7788"; // <--- CAMBIA TU CLAVE AQUÍ
+    const LINK_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSi101SizgieynwzZ-H9YCg0oi00WudmNT6COXOp2d3iJLJTHI1dWF88Fj6GULEPDV5ovZaMZLdhgoJ/pub?gid=362508444&single=true&output=csv"; // <--- PEGA TU LINK PUBLICADO
+
+    // 2. SEGURIDAD
+    function validar() {
+        const p = document.getElementById('passInput').value;
+        if(p === CLAVE_MAESTRA) {
+            document.getElementById('bloqueo').style.display = 'none';
+            document.body.style.display = 'block';
+            cargarDatos();
+        } else { alert("Clave Incorrecta"); }
+    }
+
+    // 3. LÓGICA DE LA APP
+    let inventario = [];
+    let prodActual = null;
+    let descActivo = false;
+    const reader = new ZXing.BrowserMultiFormatReader();
+
+    function cargarDatos() {
+        Papa.parse(LINK_CSV, {
+            download: true, header: true,
+            complete: (r) => { inventario = r.data; }
+        });
+    }
+
+    function buscar(t) {
+        const box = document.getElementById('sugBox');
+        if (t.length < 2) { box.style.display = 'none'; return; }
+        const coinc = inventario.filter(p => 
+            (p.PRODUCTO && p.PRODUCTO.toLowerCase().includes(t.toLowerCase())) || 
+            (p.CODIGO && p.CODIGO.toString().includes(t))
+        ).slice(0, 6);
+        box.innerHTML = coinc.map(p => `<div style="padding:10px; border-bottom:1px solid #eee;" onclick="select('${p.CODIGO}')">${p.PRODUCTO}</div>`).join('');
+        box.style.display = 'block';
+    }
+
+    function select(c) {
+        prodActual = inventario.find(x => x.CODIGO == c);
+        descActivo = false;
+        document.getElementById('sugBox').style.display = 'none';
+        render();
+    }
+
+    function render() {
+        document.getElementById('resultBox').style.display = 'block';
+        document.getElementById('btnDiscount').style.display = 'block';
+        document.getElementById('rName').innerText = prodActual.PRODUCTO;
+        const base = parseFloat(prodActual.PRECIO) || 0;
+        const total = descActivo ? base * 0.75 : base;
+        document.getElementById('rPrice').innerText = "$" + total.toFixed(2);
+        document.getElementById('btnDiscount').innerText = descActivo ? "QUITAR 25%" : "APLICAR 25% DCTO.";
+    }
+
+    function toggleDiscount() { descActivo = !descActivo; render(); }
+
+    function toggleScanner() {
+        const v = document.getElementById('video');
+        v.style.display = 'block';
+        reader.decodeFromVideoDevice(null, 'video', (res) => {
+            if (res) { select(res.text); v.style.display = 'none'; reader.reset(); }
+        });
+    }
+</script>
+</body>
+</html>
