@@ -68,12 +68,17 @@
     let descActivo = false;
 
     function cargarDatos() {
-        Papa.parse(LINK_CSV, {
-            download: true,
-            header: true,
-            complete: (r) => { inventario = r.data; }
+    fetch('data.json')
+        .then(res => res.json())
+        .then(data => {
+            inventario = data;
+        })
+        .catch(err => {
+            alert("Error cargando datos");
+            console.error(err);
         });
-    }
+}
+
 
     function buscar(t) {
         const box = document.getElementById('sugBox');
@@ -115,4 +120,5 @@
 </script>
 </body>
 </html>
+
 
